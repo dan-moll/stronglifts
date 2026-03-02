@@ -115,16 +115,16 @@ export function WorkoutTab({
   return (
     <div className="tab-content">
       {/* Session header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-5 mt-2">
         <div>
-          <h2 className="text-xl font-bold">
+          <h2 className="text-2xl font-extrabold">
             Workout {draft.type}
           </h2>
-          <p className="text-xs text-gray-400">{draft.date}</p>
+          <p className="text-sm text-gray-400 mt-0.5">{draft.date}</p>
         </div>
         <button
           onClick={discardDraft}
-          className="text-xs text-gray-400 border border-gray-200 px-3 py-1 rounded-lg"
+          className="text-xs text-gray-400 border border-gray-200 px-3 py-1.5 rounded-lg"
         >
           Discard
         </button>
@@ -156,43 +156,45 @@ export function WorkoutTab({
         return (
           <div
             key={exIdx}
-            className={`rounded-xl border mb-4 overflow-hidden ${
+            className={`rounded-2xl border mb-5 overflow-hidden shadow-sm ${
               allHit ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'
             }`}
           >
             {/* Exercise header */}
-            <div className="px-4 py-3 flex items-center justify-between">
+            <div className="px-5 pt-4 pb-2 flex items-start justify-between">
               <div>
-                <h3 className="font-bold text-base">{EXERCISE_LABELS[entry.exercise]}</h3>
-                <p className="text-xs text-gray-400">
-                  {entry.sets.length}&times;{entry.sets[0].targetReps} @ {entry.sets[0].weight}{' '}
-                  {settings.units}
+                <h3 className="font-extrabold text-lg">{EXERCISE_LABELS[entry.exercise]}</h3>
+                <p className="text-sm text-gray-500 mt-0.5">
+                  <span className="font-semibold text-gray-700">
+                    {entry.sets[0].weight} {settings.units}
+                  </span>
+                  {' '}&middot; {entry.sets.length}&times;{entry.sets[0].targetReps}
                 </p>
               </div>
               {hasPending && (
                 <button
                   onClick={() => hitAllSets(exIdx)}
-                  className="bg-green-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg active:bg-green-600"
+                  className="bg-green-500 text-white text-sm font-bold px-4 py-2 rounded-xl active:bg-green-600"
                 >
                   Hit All
                 </button>
               )}
               {allHit && (
-                <span className="text-green-600 text-xs font-bold">Complete</span>
+                <span className="text-green-600 text-sm font-bold mt-1">Complete</span>
               )}
             </div>
 
             {/* Set bubbles */}
-            <div className="px-4 pb-4 flex gap-3">
+            <div className="px-5 pb-5 pt-1 flex gap-4">
               {entry.sets.map((s, si) => (
                 <button
                   key={si}
                   onClick={() => toggleSet(exIdx, si)}
-                  className={`w-14 h-14 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all active:scale-95 ${
+                  className={`w-16 h-16 rounded-full flex items-center justify-center text-base font-bold border-[3px] transition-all active:scale-95 ${
                     s.status === 'hit'
-                      ? 'bg-green-500 border-green-500 text-white'
+                      ? 'bg-green-500 border-green-500 text-white shadow-md shadow-green-200'
                       : s.status === 'miss'
-                      ? 'bg-brand-600 border-brand-600 text-white'
+                      ? 'bg-brand-600 border-brand-600 text-white shadow-md shadow-red-200'
                       : 'bg-gray-100 border-gray-300 text-gray-500'
                   }`}
                 >

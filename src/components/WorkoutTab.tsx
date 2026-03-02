@@ -1,0 +1,225 @@
+import { useCallback } from 'react';
+import type { WorkoutSession, Settings, SetStatus, Exercise } from '../types';
+import { EXERCISE_LABELS } from '../types';
+import { nextWorkoutType, consecutiveMissCount, deloadWeight, isTrainingDay } from '../logic';
+import { useTimer } from '../hooks/useTimer';
+
+interface Props {
+  settings: Settings;
+  draft: WorkoutSession | null;
+  history: WorkoutSession[];
+  startNewSession: () => void;
+  updateDraft: (fn: (prev: WorkoutSession) => WorkoutSession) => void;
+  finishWorkout: () => void;
+  discardDraft: () => void;
+}
+
+export function WorkoutTab({
+  settings,
+  draft,
+  history,
+  startNewSession,
+  updateDraft,
+  finishWorkout,
+  discardDraft,
+}: Props) {
+  const timer = useTimer(settings.restTimerSeconds);
+
+  const toggleSet = useCallback(
+    (exIdx: number, setIdx: number) => {
+      updateDraft((prev) => {
+        const exercises = prev.exercises.map((e, ei) => {
+          if (ei !== exIdx) return e;
+          const sets = e.sets.map((s, si) => {
+            if (si !== setIdx) return s;
+            const next: SetStatus =
+              s.status === 'pending' ? 'hit' : s.status === 'hit' ? 'miss' : 'pending';
+            return { ...s, status: next };
+          });
+          return { ...e, sets };
+        });
+        return { ...prev, exercises };
+      });
+      // Auto-start rest timer
+      timer.start();
+    },
+    [updateDraft, timer]
+  );
+
+  const hitAllSets = useCallback(
+    (exIdx: number) => {
+      updateDraft((prev) => {
+        const exercises = prev.exercises.map((e, ei) => {
+          if (ei !== exIdx) return e;
+          const sets = e.sets.map((s) =>
+            s.status === 'pending' ? { ...s, status: 'hit' as const } : s
+          );
+          return { ...e, sets };
+        });
+        return { ...prev, exercises };
+      });
+    },
+    [updateDraft]
+  );
+
+  const allDone =
+    draft?.exercises.every((e) => e.sets.every((s) => s.status !== 'pending')) ?? false;
+
+  // No active draft
+  if (!draft) {
+    const nextType = nextWorkoutType(history);
+    const dayLabel = isTrainingDay() ? "Today's" : 'Next';
+
+    return (
+      <div className="tab-content flex flex-col items-center justify-center gap-6 pt-16">
+        <div className="text-center">
+          <div className="text-6xl font-black text-brand-600 mb-2">{nextType}</div>
+          <p className="text-gray-500 text-sm">
+            {dayLabel} Workout &middot; Workout {nextType}
+          </p>
+        </div>
+
+        {/* Deload warnings */}
+        {(['squat', 'bench', 'deadlift', 'press', 'powerClean', 'barbellRow'] as Exercise[]).map(
+          (ex) => {
+            const misses = consecutiveMissCount(ex, history);
+            if (misses < 2) return null;
+            const currentWeight = settings.workingWeights[ex];
+            const deloaded = deloadWeight(currentWeight, settings.deloadPercent, settings.units);
+            return (
+              <div
+                key={ex}
+                className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 w-full text-sm"
+              >
+                <span className="font-semibold text-yellow-800">Deload recommended</span>
+                <span className="text-yellow-700">
+                  {' '}&mdash; {EXERCISE_LABELS[ex]}: {currentWeight} &rarr; {deloaded}{' '}
+                  {settings.units}
+                </span>
+              </div>
+            );
+          }
+        )}
+
+        <button
+          onClick={startNewSession}
+          className="bg-brand-600 text-white font-bold text-lg px-10 py-4 rounded-xl shadow-lg active:bg-brand-700 transition-colors"
+        >
+          Start Workout {nextType}
+        </button>
+      </div>
+    );
+  }
+
+  // Active session
+  return (
+    <div className="tab-content">
+      {/* Session header */}
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h2 className="text-xl font-bold">
+            Workout {draft.type}
+          </h2>
+          <p className="text-xs text-gray-400">{draft.date}</p>
+        </div>
+        <button
+          onClick={discardDraft}
+          className="text-xs text-gray-400 border border-gray-200 px-3 py-1 rounded-lg"
+        >
+          Discard
+        </button>
+      </div>
+
+      {/* Rest timer */}
+      {timer.running && (
+        <div className="bg-brand-50 border border-brand-200 rounded-xl p-4 mb-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs text-brand-600 font-medium">Rest Timer</p>
+            <p className="text-3xl font-mono font-bold text-brand-700">
+              {Math.floor(timer.remaining / 60)}:{String(timer.remaining % 60).padStart(2, '0')}
+            </p>
+          </div>
+          <button
+            onClick={timer.stop}
+            className="text-brand-600 text-sm font-medium border border-brand-200 px-3 py-1.5 rounded-lg"
+          >
+            Skip
+          </button>
+        </div>
+      )}
+
+      {/* Exercise cards */}
+      {draft.exercises.map((entry, exIdx) => {
+        const allHit = entry.sets.every((s) => s.status === 'hit');
+        const hasPending = entry.sets.some((s) => s.status === 'pending');
+
+        return (
+          <div
+            key={exIdx}
+            className={`rounded-xl border mb-4 overflow-hidden ${
+              allHit ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'
+            }`}
+          >
+            {/* Exercise header */}
+            <div className="px-4 py-3 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-base">{EXERCISE_LABELS[entry.exercise]}</h3>
+                <p className="text-xs text-gray-400">
+                  {entry.sets.length}&times;{entry.sets[0].targetReps} @ {entry.sets[0].weight}{' '}
+                  {settings.units}
+                </p>
+              </div>
+              {hasPending && (
+                <button
+                  onClick={() => hitAllSets(exIdx)}
+                  className="bg-green-500 text-white text-xs font-bold px-3 py-1.5 rounded-lg active:bg-green-600"
+                >
+                  Hit All
+                </button>
+              )}
+              {allHit && (
+                <span className="text-green-600 text-xs font-bold">Complete</span>
+              )}
+            </div>
+
+            {/* Set bubbles */}
+            <div className="px-4 pb-4 flex gap-3">
+              {entry.sets.map((s, si) => (
+                <button
+                  key={si}
+                  onClick={() => toggleSet(exIdx, si)}
+                  className={`w-14 h-14 rounded-full flex items-center justify-center text-sm font-bold border-2 transition-all active:scale-95 ${
+                    s.status === 'hit'
+                      ? 'bg-green-500 border-green-500 text-white'
+                      : s.status === 'miss'
+                      ? 'bg-brand-600 border-brand-600 text-white'
+                      : 'bg-gray-100 border-gray-300 text-gray-500'
+                  }`}
+                >
+                  {s.status === 'pending'
+                    ? s.targetReps
+                    : s.status === 'hit'
+                    ? '\u2713'
+                    : '\u2717'}
+                </button>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+
+      {/* Finish button */}
+      <button
+        onClick={finishWorkout}
+        disabled={!allDone}
+        className={`w-full py-4 rounded-xl font-bold text-lg mt-2 transition-colors ${
+          allDone
+            ? 'bg-brand-600 text-white active:bg-brand-700 shadow-lg'
+            : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+        }`}
+      >
+        Finish Workout
+      </button>
+    </div>
+  );
+}

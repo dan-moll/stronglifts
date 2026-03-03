@@ -28,7 +28,7 @@ export default function App() {
   return (
     <div className="max-w-lg mx-auto min-h-screen flex flex-col">
       {/* Header */}
-      <header className="bg-brand-600 text-white px-4 py-3 flex items-center justify-between sticky top-0 z-30">
+      <header className="bg-brand-600 text-white px-4 py-3 pt-[max(0.75rem,env(safe-area-inset-top))] flex items-center justify-between sticky top-0 z-30">
         <h1 className="text-lg font-bold tracking-tight">StrongLifts 5×5</h1>
         <span className="text-xs opacity-75">{settings.units.toUpperCase()}</span>
       </header>

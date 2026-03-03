@@ -15,7 +15,7 @@ interface Props {
 
 export function TabBar({ active, onChange }: Props) {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 safe-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-40 pb-[env(safe-area-inset-bottom)]">
       <div className="max-w-lg mx-auto flex">
         {tabs.map((t) => (
           <button

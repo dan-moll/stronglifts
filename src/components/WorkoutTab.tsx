@@ -71,7 +71,7 @@ export function WorkoutTab({
     const dayLabel = isTrainingDay() ? "Today's" : 'Next';
 
     return (
-      <div className="tab-content flex flex-col items-center justify-center gap-6 pt-16">
+      <div className="fixed inset-0 top-[3.25rem] bottom-[4rem] flex flex-col items-center justify-center gap-6 px-6 overflow-hidden">
         <div className="text-center">
           <div className="text-6xl font-black text-brand-600 mb-2">{nextType}</div>
           <p className="text-gray-500 text-sm">

@@ -1,8 +1,10 @@
 import { useCallback } from 'react';
 import type { WorkoutSession, Settings, SetStatus, Exercise } from '../types';
-import { EXERCISE_LABELS } from '../types';
+import { EXERCISE_LABELS, BODYWEIGHT_EXERCISES } from '../types';
 import { nextWorkoutType, consecutiveMissCount, deloadWeight, isTrainingDay } from '../logic';
 import { useTimer } from '../hooks/useTimer';
+
+const DELOAD_THRESHOLD = 3;
 
 interface Props {
   settings: Settings;
@@ -12,6 +14,7 @@ interface Props {
   updateDraft: (fn: (prev: WorkoutSession) => WorkoutSession) => void;
   finishWorkout: () => void;
   discardDraft: () => void;
+  updateSettings: (patch: Partial<Settings>) => void;
 }
 
 export function WorkoutTab({
@@ -22,6 +25,7 @@ export function WorkoutTab({
   updateDraft,
   finishWorkout,
   discardDraft,
+  updateSettings,
 }: Props) {
   const timer = useTimer(settings.restTimerSeconds);
 
@@ -40,7 +44,6 @@ export function WorkoutTab({
         });
         return { ...prev, exercises };
       });
-      // Auto-start rest timer
       timer.start();
     },
     [updateDraft, timer]
@@ -62,16 +65,39 @@ export function WorkoutTab({
     [updateDraft]
   );
 
+  const applyDeload = useCallback(
+    (exercise: Exercise) => {
+      const current = settings.workingWeights[exercise];
+      const reduced = deloadWeight(current, settings.deloadPercent, settings.units);
+      updateSettings({
+        workingWeights: { ...settings.workingWeights, [exercise]: reduced },
+      });
+    },
+    [settings, updateSettings]
+  );
+
   const allDone =
     draft?.exercises.every((e) => e.sets.every((s) => s.status !== 'pending')) ?? false;
 
-  // No active draft
+  // No active draft — pre-workout screen
   if (!draft) {
     const nextType = nextWorkoutType(history);
+    const nextProgram = nextType === 'A' ? settings.programA : settings.programB;
     const dayLabel = isTrainingDay() ? "Today's" : 'Next';
 
+    const deloadWarnings = nextProgram
+      .filter((p) => !BODYWEIGHT_EXERCISES.has(p.exercise))
+      .map((p) => {
+        const misses = consecutiveMissCount(p.exercise, history);
+        if (misses < DELOAD_THRESHOLD) return null;
+        const current = settings.workingWeights[p.exercise];
+        const reduced = deloadWeight(current, settings.deloadPercent, settings.units);
+        return { exercise: p.exercise, current, reduced, misses };
+      })
+      .filter(Boolean) as { exercise: Exercise; current: number; reduced: number; misses: number }[];
+
     return (
-      <div className="fixed inset-0 top-[3.25rem] bottom-[4rem] flex flex-col items-center justify-center gap-6 px-6 overflow-hidden">
+      <div className="fixed inset-0 top-[3.25rem] bottom-[4rem] flex flex-col items-center justify-center gap-5 px-6 overflow-y-auto py-6">
         <div className="text-center">
           <div className="text-6xl font-black text-brand-600 mb-2">{nextType}</div>
           <p className="text-gray-500 text-sm">
@@ -79,31 +105,47 @@ export function WorkoutTab({
           </p>
         </div>
 
-        {/* Deload warnings */}
-        {(['squat', 'bench', 'deadlift', 'press', 'powerClean', 'barbellRow'] as Exercise[]).map(
-          (ex) => {
-            const misses = consecutiveMissCount(ex, history);
-            if (misses < 2) return null;
-            const currentWeight = settings.workingWeights[ex];
-            const deloaded = deloadWeight(currentWeight, settings.deloadPercent, settings.units);
-            return (
-              <div
-                key={ex}
-                className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 w-full text-sm"
-              >
-                <span className="font-semibold text-yellow-800">Deload recommended</span>
-                <span className="text-yellow-700">
-                  {' '}&mdash; {EXERCISE_LABELS[ex]}: {currentWeight} &rarr; {deloaded}{' '}
-                  {settings.units}
-                </span>
+        {/* Upcoming exercises */}
+        <div className="w-full bg-gray-50 rounded-xl px-4 py-3 space-y-1">
+          {nextProgram.map((p) => (
+            <div key={p.exercise} className="flex justify-between text-sm">
+              <span className="text-gray-700">{EXERCISE_LABELS[p.exercise]}</span>
+              <span className="text-gray-400">
+                {p.sets}×{p.reps}
+                {!BODYWEIGHT_EXERCISES.has(p.exercise) && (
+                  <> &middot; <span className="font-medium text-gray-600">{settings.workingWeights[p.exercise]} {settings.units}</span></>
+                )}
+              </span>
+            </div>
+          ))}
+        </div>
+
+        {/* Deload warnings with Apply button */}
+        {deloadWarnings.map(({ exercise, current, reduced }) => (
+          <div
+            key={exercise}
+            className="bg-yellow-50 border border-yellow-200 rounded-xl p-3 w-full"
+          >
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-yellow-800">Deload recommended</p>
+                <p className="text-xs text-yellow-600 mt-0.5">
+                  {EXERCISE_LABELS[exercise]}: {current} → {reduced} {settings.units}
+                </p>
               </div>
-            );
-          }
-        )}
+              <button
+                onClick={() => applyDeload(exercise)}
+                className="bg-yellow-400 text-yellow-900 text-xs font-bold px-3 py-1.5 rounded-lg active:bg-yellow-500 ml-3 shrink-0"
+              >
+                Apply
+              </button>
+            </div>
+          </div>
+        ))}
 
         <button
           onClick={startNewSession}
-          className="bg-brand-600 text-white font-bold text-lg px-10 py-4 rounded-xl shadow-lg active:bg-brand-700 transition-colors"
+          className="bg-brand-600 text-white font-bold text-lg px-10 py-4 rounded-xl shadow-lg active:bg-brand-700 transition-colors w-full"
         >
           Start Workout {nextType}
         </button>
@@ -114,12 +156,9 @@ export function WorkoutTab({
   // Active session
   return (
     <div className="tab-content">
-      {/* Session header */}
       <div className="flex items-center justify-between mb-5 mt-2">
         <div>
-          <h2 className="text-2xl font-extrabold">
-            Workout {draft.type}
-          </h2>
+          <h2 className="text-2xl font-extrabold">Workout {draft.type}</h2>
           <p className="text-sm text-gray-400 mt-0.5">{draft.date}</p>
         </div>
         <button
@@ -150,6 +189,7 @@ export function WorkoutTab({
 
       {/* Exercise cards */}
       {draft.exercises.map((entry, exIdx) => {
+        const isBodyweight = BODYWEIGHT_EXERCISES.has(entry.exercise);
         const allHit = entry.sets.every((s) => s.status === 'hit');
         const hasPending = entry.sets.some((s) => s.status === 'pending');
 
@@ -160,13 +200,12 @@ export function WorkoutTab({
               allHit ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-white'
             }`}
           >
-            {/* Exercise header */}
             <div className="px-5 pt-4 pb-2 flex items-start justify-between">
               <div>
                 <h3 className="font-extrabold text-lg">{EXERCISE_LABELS[entry.exercise]}</h3>
                 <p className="text-sm text-gray-500 mt-0.5">
                   <span className="font-semibold text-gray-700">
-                    {entry.sets[0].weight} {settings.units}
+                    {isBodyweight ? 'Bodyweight' : `${entry.sets[0].weight} ${settings.units}`}
                   </span>
                   {' '}&middot; {entry.sets.length}&times;{entry.sets[0].targetReps}
                 </p>
@@ -184,7 +223,6 @@ export function WorkoutTab({
               )}
             </div>
 
-            {/* Set bubbles */}
             <div className="px-5 pb-5 pt-1 flex gap-4">
               {entry.sets.map((s, si) => (
                 <button
@@ -210,7 +248,6 @@ export function WorkoutTab({
         );
       })}
 
-      {/* Finish button */}
       <button
         onClick={finishWorkout}
         disabled={!allDone}

@@ -7,33 +7,7 @@ import type {
   Settings,
   WarmupSet,
 } from './types';
-import { BAR_WEIGHT } from './types';
-
-// ---------- Program definition ----------
-
-interface ProgramExercise {
-  exercise: Exercise;
-  sets: number;
-  reps: number;
-}
-
-function getProgram(type: WorkoutType, useBarbelRow: boolean): ProgramExercise[] {
-  if (type === 'A') {
-    return [
-      { exercise: 'squat', sets: 3, reps: 5 },
-      { exercise: 'bench', sets: 3, reps: 5 },
-      { exercise: 'deadlift', sets: 1, reps: 5 },
-    ];
-  }
-  const thirdLift: ProgramExercise = useBarbelRow
-    ? { exercise: 'barbellRow', sets: 3, reps: 5 }
-    : { exercise: 'powerClean', sets: 5, reps: 3 };
-  return [
-    { exercise: 'squat', sets: 3, reps: 5 },
-    { exercise: 'press', sets: 3, reps: 5 },
-    thirdLift,
-  ];
-}
+import { BAR_WEIGHT, BODYWEIGHT_EXERCISES } from './types';
 
 // ---------- A/B alternation ----------
 
@@ -56,7 +30,7 @@ export function buildSession(
   settings: Settings,
   history: WorkoutSession[],
 ): WorkoutSession {
-  const program = getProgram(type, settings.useBarbelRow);
+  const program = type === 'A' ? settings.programA : settings.programB;
   const exercises: ExerciseEntry[] = program.map((p) => {
     const weight = computeWorkingWeight(p.exercise, settings, history);
     const sets: WorkoutSet[] = Array.from({ length: p.sets }, () => ({
@@ -85,8 +59,9 @@ function computeWorkingWeight(
   settings: Settings,
   history: WorkoutSession[],
 ): number {
+  if (BODYWEIGHT_EXERCISES.has(exercise)) return 0;
+
   const completed = history.filter((w) => w.completed);
-  // Find last session that contained this exercise
   const lastWithExercise = [...completed]
     .reverse()
     .find((w) => w.exercises.some((e) => e.exercise === exercise));
@@ -98,11 +73,11 @@ function computeWorkingWeight(
   const entry = lastWithExercise.exercises.find((e) => e.exercise === exercise)!;
   const allHit = entry.sets.every((s) => s.status === 'hit');
   const lastWeight = entry.sets[0].weight;
+  const historyWeight = allHit ? lastWeight + settings.increments[exercise] : lastWeight;
 
-  if (allHit) {
-    return lastWeight + settings.increments[exercise];
-  }
-  return lastWeight; // repeat
+  // Honor a manual deload: if settings weight is lower, use it
+  const settingsWeight = settings.workingWeights[exercise];
+  return settingsWeight < historyWeight ? settingsWeight : historyWeight;
 }
 
 // ---------- Consecutive-miss detection ----------
@@ -144,13 +119,12 @@ export function applyProgression(
 ): Settings {
   const updated = { ...settings, workingWeights: { ...settings.workingWeights } };
   for (const entry of session.exercises) {
+    if (BODYWEIGHT_EXERCISES.has(entry.exercise)) continue;
     const allHit = entry.sets.every((s) => s.status === 'hit');
     if (allHit) {
       updated.workingWeights[entry.exercise] =
         entry.sets[0].weight + settings.increments[entry.exercise];
     }
-    // If missed, working weight stays the same (no change needed since
-    // computeWorkingWeight reads from history)
   }
   return updated;
 }
@@ -176,7 +150,6 @@ export function generateWarmup(
   for (let i = 0; i < pcts.length; i++) {
     const w = round(workWeight * pcts[i]);
     if (w > bar && w < workWeight) {
-      // Deduplicate: skip if same as previous entry
       if (warmups.length === 0 || warmups[warmups.length - 1].weight !== w) {
         warmups.push({ weight: w, reps: reps[i], sets: 1 });
       }
@@ -190,8 +163,7 @@ export function generateWarmup(
 
 export function nextTrainingDay(): Date {
   const now = new Date();
-  const day = now.getDay(); // 0=Sun, 1=Mon, ...
-  // M=1, W=3, F=5
+  const day = now.getDay();
   const trainingDays = [1, 3, 5];
   for (const td of trainingDays) {
     if (day <= td) {
@@ -201,7 +173,6 @@ export function nextTrainingDay(): Date {
       return d;
     }
   }
-  // Past Friday, next Monday
   const d = new Date(now);
   d.setDate(d.getDate() + (8 - day));
   return d;

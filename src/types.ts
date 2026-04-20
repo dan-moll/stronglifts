@@ -4,7 +4,8 @@ export type Exercise =
   | 'deadlift'
   | 'press'
   | 'powerClean'
-  | 'barbellRow';
+  | 'barbellRow'
+  | 'chinUp';
 
 export type WorkoutType = 'A' | 'B';
 export type SetStatus = 'pending' | 'hit' | 'miss';
@@ -30,6 +31,12 @@ export interface WorkoutSession {
   completedAt?: number;
 }
 
+export interface ProgramExercise {
+  exercise: Exercise;
+  sets: number;
+  reps: number;
+}
+
 export interface Settings {
   workingWeights: Record<Exercise, number>;
   increments: Record<Exercise, number>;
@@ -37,6 +44,8 @@ export interface Settings {
   units: 'lb' | 'kg';
   useBarbelRow: boolean;
   deloadPercent: number;
+  programA: ProgramExercise[];
+  programB: ProgramExercise[];
 }
 
 export interface WarmupSet {
@@ -52,7 +61,20 @@ export const EXERCISE_LABELS: Record<Exercise, string> = {
   press: 'Overhead Press',
   powerClean: 'Power Clean',
   barbellRow: 'Barbell Row',
+  chinUp: 'Chin-ups',
 };
+
+export const BODYWEIGHT_EXERCISES = new Set<Exercise>(['chinUp']);
+
+export const ALL_EXERCISES: Exercise[] = [
+  'squat',
+  'bench',
+  'deadlift',
+  'press',
+  'powerClean',
+  'barbellRow',
+  'chinUp',
+];
 
 export const DEFAULT_SETTINGS: Settings = {
   workingWeights: {
@@ -62,6 +84,7 @@ export const DEFAULT_SETTINGS: Settings = {
     press: 45,
     powerClean: 95,
     barbellRow: 65,
+    chinUp: 0,
   },
   increments: {
     squat: 5,
@@ -70,11 +93,21 @@ export const DEFAULT_SETTINGS: Settings = {
     press: 5,
     powerClean: 5,
     barbellRow: 5,
+    chinUp: 0,
   },
   restTimerSeconds: 90,
   units: 'lb',
   useBarbelRow: false,
   deloadPercent: 10,
+  programA: [
+    { exercise: 'squat', sets: 3, reps: 5 },
+    { exercise: 'bench', sets: 3, reps: 5 },
+    { exercise: 'chinUp', sets: 3, reps: 5 },
+  ],
+  programB: [
+    { exercise: 'squat', sets: 3, reps: 5 },
+    { exercise: 'deadlift', sets: 1, reps: 5 },
+  ],
 };
 
 export const BAR_WEIGHT: Record<'lb' | 'kg', number> = { lb: 45, kg: 20 };

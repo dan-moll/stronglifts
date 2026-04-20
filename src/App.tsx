@@ -44,6 +44,7 @@ export default function App() {
             updateDraft={workouts.updateDraft}
             finishWorkout={workouts.finishWorkout}
             discardDraft={workouts.discardDraft}
+            updateSettings={updateSettings}
           />
         )}
         {tab === 'warmup' && (

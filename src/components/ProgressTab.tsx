@@ -18,6 +18,7 @@ const ALL_EXERCISES: Exercise[] = [
   'press',
   'powerClean',
   'barbellRow',
+  'chinUp',
 ];
 
 const COLORS: Record<Exercise, string> = {
@@ -27,6 +28,7 @@ const COLORS: Record<Exercise, string> = {
   press: '#9333ea',
   powerClean: '#ea580c',
   barbellRow: '#0d9488',
+  chinUp: '#0284c7',
 };
 
 interface Props {
